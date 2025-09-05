@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Match Tracker - Reset Version</title>
+  <title>Match Tracker - Two Column Actions</title>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -21,12 +21,12 @@
       font-family: var(--font);
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
-    body { overflow: hidden; }
     .topbar {
       flex: 0 0 auto;
       display: grid;
-      grid-template-columns: auto 1fr auto; /* Reset | Totals | By Player */
+      grid-template-columns: auto 1fr auto;
       align-items: center;
       padding: 4px;
       font-size: 12px;
@@ -66,7 +66,7 @@
       display: flex;
     }
     .player-grid {
-      flex: 1;
+      flex: 0 0 40%;
       display: grid;
       grid-template-columns: 1fr 1fr;
       grid-template-rows: repeat(5, 1fr);
@@ -85,8 +85,8 @@
     .actions {
       flex: 1;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
+      grid-template-columns: 1fr 1fr; /* 2 columns */
+      grid-template-rows: repeat(3, 1fr); /* 3 rows */
       gap: var(--gap);
       margin-top: var(--gap);
     }
@@ -96,6 +96,10 @@
       border-radius: 6px;
       background: #1b2130;
       color: #e8eaed;
+      transition: background 0.2s;
+    }
+    .actions button.flash {
+      background: #3a4b6b !important;
     }
     .totalsView table {
       width: 100%;
@@ -124,6 +128,15 @@
       border: 1px solid #2a2f3a;
       border-radius: 6px;
     }
+    .player-input {
+      width: 100%;
+      font-size: 14px;
+      background: #151922;
+      color: #e8eaed;
+      border: 1px solid #2a2f3a;
+      border-radius: 4px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -141,9 +154,11 @@
   <div class="main active" id="mainView">
     <div class="player-grid" id="playerGrid"></div>
     <div class="actions">
+      <button data-action="save">Save</button>
       <button data-action="tackle">Tackle</button>
       <button data-action="pass">Pass</button>
       <button data-action="dribble">Dribble</button>
+      <button data-action="assist">Assist</button>
       <button data-action="goal">Goal</button>
     </div>
   </div>
@@ -156,7 +171,7 @@
     </div>
     <table id="playerTotalsTable">
       <thead>
-        <tr><th>Player</th><th>Tackles</th><th>Passes</th><th>Dribbles</th><th>Goals</th></tr>
+        <tr><th>Player</th><th>Tackles</th><th>Passes</th><th>Dribbles</th><th>Assists</th><th>Goals</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -164,15 +179,15 @@
 
   <script>
     const players=['Ahmad', 'Brooke', 'Dhiv', 'Finley', 'Jacob', 'James', 'Joseph', 'Seth', 'Thea', 'Tristan'];
-    const ACTIONS=["tackle","pass","dribble","goal"];
-    const STORAGE_KEY="match-tracker-v6";
+    const ACTIONS=["tackle","pass","dribble","assist","goal"];
+    const STORAGE_KEY="match-tracker-v8";
 
     function loadState(){
       try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return null;return JSON.parse(raw);}
       catch(e){return null;}
     }
     function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify({players,stats}));}
-    function freshStats(){const o={};players.forEach((p,i)=>{o[i]={tackle:0,pass:0,dribble:0,goal:0};});return o;}
+    function freshStats(){const o={};players.forEach((p,i)=>{o[i]={tackle:0,pass:0,dribble:0,assist:0,goal:0};});return o;}
 
     let stats=freshStats();
     const saved=loadState();
@@ -194,8 +209,12 @@
 
     document.querySelectorAll(".actions button").forEach(btn=>{
       btn.addEventListener("click",()=>{
-        if(currentPlayer===null){alert("Please select a player first");return;}
+        btn.classList.add("flash");
+        setTimeout(()=>btn.classList.remove("flash"),200);
+
         const action=btn.dataset.action;
+        if(action==="save"){ saveState(); return; }
+        if(currentPlayer===null){alert("Please select a player first");return;}
         stats[currentPlayer][action]++;
         updateTotals();
         saveState();
@@ -204,7 +223,7 @@
     });
 
     function updateTotals(){
-      const totals={tackle:0,pass:0,dribble:0,goal:0};
+      const totals={tackle:0,pass:0,dribble:0,assist:0,goal:0};
       Object.values(stats).forEach(s=>ACTIONS.forEach(a=>totals[a]+=s[a]));
       document.getElementById("total-tackle").textContent=totals.tackle;
       document.getElementById("total-pass").textContent=totals.pass;
@@ -218,8 +237,17 @@
       players.forEach((p,i)=>{
         const s=stats[i];
         const row=document.createElement("tr");
-        row.innerHTML=`<td>${p}</td><td>${s.tackle}</td><td>${s.pass}</td><td>${s.dribble}</td><td>${s.goal}</td>`;
+        row.innerHTML=`<td><input value="${p}" data-idx="${i}" class="player-input"></td>
+                       <td>${s.tackle}</td><td>${s.pass}</td><td>${s.dribble}</td><td>${s.assist}</td><td>${s.goal}</td>`;
         tbody.appendChild(row);
+      });
+      document.querySelectorAll(".player-input").forEach(inp=>{
+        inp.addEventListener("change",()=>{
+          const i=+inp.dataset.idx;
+          players[i]=inp.value.trim()||players[i];
+          saveState();
+          renderPlayerTotals();
+        });
       });
     }
 
