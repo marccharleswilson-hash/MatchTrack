@@ -1,0 +1,232 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Match Tracker - Two Stage</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <style>
+    :root{
+      --gap: 4px;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0f1115;
+      color: #e8eaed;
+      font-family: var(--font);
+      display: flex;
+      flex-direction: column;
+    }
+    body { overflow: hidden; }
+    .topbar {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      padding: 4px;
+      font-size: 12px;
+      border-bottom: 1px solid #2a2f3a;
+    }
+    .totals {
+      display: grid;
+      grid-template-columns: repeat(4, auto);
+      gap: 6px;
+    }
+    .total {
+      text-align: center;
+      font-size: 12px;
+    }
+    .total span {
+      font-weight: bold;
+      display: block;
+      font-size: 14px;
+    }
+    button.small {
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #1b2130;
+      color: #e8eaed;
+      border: 1px solid #2a2f3a;
+      border-radius: 6px;
+    }
+    .main, .totalsView {
+      flex: 1 1 auto;
+      display: none;
+      flex-direction: column;
+      padding: var(--gap);
+      box-sizing: border-box;
+    }
+    .main.active, .totalsView.active {
+      display: flex;
+    }
+    .player-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(5, 1fr);
+      gap: var(--gap);
+    }
+    .player-grid button {
+      font-size: 32px;
+      border: 1px solid #2a2f3a;
+      border-radius: 6px;
+      background: #151922;
+      color: #e8eaed;
+    }
+    .player-grid button.active {
+      background: #3a4b6b;
+    }
+    .actions {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: var(--gap);
+      margin-top: var(--gap);
+    }
+    .actions button {
+      font-size: 48px;
+      border: 1px solid #2a2f3a;
+      border-radius: 6px;
+      background: #1b2130;
+      color: #e8eaed;
+    }
+    .totalsView table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .totalsView th, .totalsView td {
+      border: 1px solid #2a2f3a;
+      padding: 4px;
+      text-align: center;
+    }
+    .totalsView th {
+      background: #1b2130;
+    }
+    .totalsView .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .totalsView button {
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #1b2130;
+      color: #e8eaed;
+      border: 1px solid #2a2f3a;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="totals" id="totals-bar">
+      <div class="total">Tackles<span id="total-tackle">0</span></div>
+      <div class="total">Passes<span id="total-pass">0</span></div>
+      <div class="total">Dribbles<span id="total-dribble">0</span></div>
+      <div class="total">Goals<span id="total-goal">0</span></div>
+    </div>
+    <button class="small" id="viewByPlayer">By Player</button>
+  </div>
+
+  <div class="main active" id="mainView">
+    <div class="player-grid" id="playerGrid"></div>
+    <div class="actions">
+      <button data-action="tackle">Tackle</button>
+      <button data-action="pass">Pass</button>
+      <button data-action="dribble">Dribble</button>
+      <button data-action="goal">Goal</button>
+    </div>
+  </div>
+
+  <div class="totalsView" id="totalsView">
+    <div class="header">
+      <button id="backBtn">Back</button>
+      <h3>Player Totals</h3>
+      <div></div>
+    </div>
+    <table id="playerTotalsTable">
+      <thead>
+        <tr><th>Player</th><th>Tackles</th><th>Passes</th><th>Dribbles</th><th>Goals</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const players=["Jacob","Finley","Seth","Tristan","Joseph","Brooke","Thea","Ahmad","Dhiv","James"];
+    const ACTIONS=["tackle","pass","dribble","goal"];
+    const STORAGE_KEY="match-tracker-v4";
+    function loadState(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return null;return JSON.parse(raw);}catch(e){return null;}}
+    function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify({players,stats}));}
+    function freshStats(){const o={};players.forEach((p,i)=>{o[i]={tackle:0,pass:0,dribble:0,goal:0};});return o;}
+    let stats=freshStats();
+    const saved=loadState();if(saved&&JSON.stringify(saved.players)===JSON.stringify(players)){stats=saved.stats;}else{saveState();}
+
+    let currentPlayer=null;
+    const playerGrid=document.getElementById("playerGrid");
+    players.forEach((p,i)=>{
+      const btn=document.createElement("button");
+      btn.textContent=p;
+      btn.dataset.idx=i;
+      btn.addEventListener("click",()=>{
+        currentPlayer=i;
+        document.querySelectorAll("#playerGrid button").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+      });
+      playerGrid.appendChild(btn);
+    });
+
+    document.querySelectorAll(".actions button").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        if(currentPlayer===null){alert("Please select a player first");return;}
+        const action=btn.dataset.action;
+        stats[currentPlayer][action]++;
+        updateTotals();
+        saveState();
+        if("vibrate"in navigator)navigator.vibrate(10);
+      });
+    });
+
+    function updateTotals(){
+      const totals={tackle:0,pass:0,dribble:0,goal:0};
+      Object.values(stats).forEach(s=>ACTIONS.forEach(a=>totals[a]+=s[a]));
+      document.getElementById("total-tackle").textContent=totals.tackle;
+      document.getElementById("total-pass").textContent=totals.pass;
+      document.getElementById("total-dribble").textContent=totals.dribble;
+      document.getElementById("total-goal").textContent=totals.goal;
+    }
+
+    function renderPlayerTotals(){
+      const tbody=document.querySelector("#playerTotalsTable tbody");
+      tbody.innerHTML="";
+      players.forEach((p,i)=>{
+        const s=stats[i];
+        const row=document.createElement("tr");
+        row.innerHTML=`<td>${p}</td><td>${s.tackle}</td><td>${s.pass}</td><td>${s.dribble}</td><td>${s.goal}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    document.getElementById("viewByPlayer").addEventListener("click",()=>{
+      document.getElementById("mainView").classList.remove("active");
+      document.getElementById("totalsView").classList.add("active");
+      renderPlayerTotals();
+    });
+    document.getElementById("backBtn").addEventListener("click",()=>{
+      document.getElementById("totalsView").classList.remove("active");
+      document.getElementById("mainView").classList.add("active");
+    });
+
+    updateTotals();
+  </script>
+</body>
+</html>
