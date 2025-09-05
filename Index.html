@@ -1,9 +1,8 @@
-
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Match Tracker - Two Stage</title>
+  <title>Match Tracker - Reset Version</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +26,7 @@
     .topbar {
       flex: 0 0 auto;
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: auto 1fr auto; /* Reset | Totals | By Player */
       align-items: center;
       padding: 4px;
       font-size: 12px;
@@ -37,6 +36,7 @@
       display: grid;
       grid-template-columns: repeat(4, auto);
       gap: 6px;
+      justify-content: center;
     }
     .total {
       text-align: center;
@@ -128,6 +128,7 @@
 </head>
 <body>
   <div class="topbar">
+    <button class="small" id="resetBtn">Reset</button>
     <div class="totals" id="totals-bar">
       <div class="total">Tackles<span id="total-tackle">0</span></div>
       <div class="total">Passes<span id="total-pass">0</span></div>
@@ -162,14 +163,20 @@
   </div>
 
   <script>
-    const players=["Jacob","Finley","Seth","Tristan","Joseph","Brooke","Thea","Ahmad","Dhiv","James"];
+    const players=['Ahmad', 'Brooke', 'Dhiv', 'Finley', 'Jacob', 'James', 'Joseph', 'Seth', 'Thea', 'Tristan'];
     const ACTIONS=["tackle","pass","dribble","goal"];
-    const STORAGE_KEY="match-tracker-v4";
-    function loadState(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return null;return JSON.parse(raw);}catch(e){return null;}}
+    const STORAGE_KEY="match-tracker-v6";
+
+    function loadState(){
+      try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return null;return JSON.parse(raw);}
+      catch(e){return null;}
+    }
     function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify({players,stats}));}
     function freshStats(){const o={};players.forEach((p,i)=>{o[i]={tackle:0,pass:0,dribble:0,goal:0};});return o;}
+
     let stats=freshStats();
-    const saved=loadState();if(saved&&JSON.stringify(saved.players)===JSON.stringify(players)){stats=saved.stats;}else{saveState();}
+    const saved=loadState();
+    if(saved&&JSON.stringify(saved.players)===JSON.stringify(players)){stats=saved.stats;}else{saveState();}
 
     let currentPlayer=null;
     const playerGrid=document.getElementById("playerGrid");
@@ -224,6 +231,17 @@
     document.getElementById("backBtn").addEventListener("click",()=>{
       document.getElementById("totalsView").classList.remove("active");
       document.getElementById("mainView").classList.add("active");
+    });
+
+    document.getElementById("resetBtn").addEventListener("click",()=>{
+      if(confirm("Reset all stats to zero?")){
+        stats=freshStats();
+        currentPlayer=null;
+        document.querySelectorAll("#playerGrid button").forEach(b=>b.classList.remove("active"));
+        updateTotals();
+        renderPlayerTotals();
+        saveState();
+      }
     });
 
     updateTotals();
