@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Match Tracker - Two Column Actions</title>
+  <title>Match Tracker - Score Update</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,30 +26,21 @@
     .topbar {
       flex: 0 0 auto;
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: auto 1fr auto auto;
       align-items: center;
-      padding: 4px;
-      font-size: 12px;
+      padding: 6px;
+      font-size: 16px;
       border-bottom: 1px solid #2a2f3a;
+      gap: 8px;
     }
-    .totals {
-      display: grid;
-      grid-template-columns: repeat(4, auto);
-      gap: 6px;
-      justify-content: center;
-    }
-    .total {
+    .score {
       text-align: center;
-      font-size: 12px;
-    }
-    .total span {
+      font-size: 20px;
       font-weight: bold;
-      display: block;
-      font-size: 14px;
     }
     button.small {
-      font-size: 12px;
-      padding: 4px 8px;
+      font-size: 14px;
+      padding: 6px 10px;
       background: #1b2130;
       color: #e8eaed;
       border: 1px solid #2a2f3a;
@@ -142,12 +133,8 @@
 <body>
   <div class="topbar">
     <button class="small" id="resetBtn">Reset</button>
-    <div class="totals" id="totals-bar">
-      <div class="total">Tackles<span id="total-tackle">0</span></div>
-      <div class="total">Passes<span id="total-pass">0</span></div>
-      <div class="total">Dribbles<span id="total-dribble">0</span></div>
-      <div class="total">Goals<span id="total-goal">0</span></div>
-    </div>
+    <div class="score" id="scoreDisplay">0 - 0</div>
+    <button class="small" id="oppGoalBtn">Opp Goal</button>
     <button class="small" id="viewByPlayer">By Player</button>
   </div>
 
@@ -171,27 +158,28 @@
     </div>
     <table id="playerTotalsTable">
       <thead>
-        <tr><th>Player</th><th>Tackles</th><th>Passes</th><th>Dribbles</th><th>Assists</th><th>Goals</th></tr>
+        <tr><th>Player</th><th>Saves</th><th>Tackles</th><th>Passes</th><th>Dribbles</th><th>Assists</th><th>Goals</th></tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
 
   <script>
-    const players=['Ahmad', 'Brooke', 'Dhiv', 'Finley', 'Jacob', 'James', 'Joseph', 'Seth', 'Thea', 'Tristan'];
-    const ACTIONS=["tackle","pass","dribble","assist","goal"];
-    const STORAGE_KEY="match-tracker-v8";
+    const players=["Ahmad","Brooke","Dhiv","Finley","Jacob","James","Joseph","Seth","Thea","Tristan"];
+    const ACTIONS=["save","tackle","pass","dribble","assist","goal"];
+    const STORAGE_KEY="match-tracker-v9";
 
     function loadState(){
       try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return null;return JSON.parse(raw);}
       catch(e){return null;}
     }
-    function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify({players,stats}));}
-    function freshStats(){const o={};players.forEach((p,i)=>{o[i]={tackle:0,pass:0,dribble:0,assist:0,goal:0};});return o;}
+    function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify({players,stats,oppGoals}));}
+    function freshStats(){const o={};players.forEach((p,i)=>{o[i]={save:0,tackle:0,pass:0,dribble:0,assist:0,goal:0};});return o;}
 
     let stats=freshStats();
+    let oppGoals=0;
     const saved=loadState();
-    if(saved&&JSON.stringify(saved.players)===JSON.stringify(players)){stats=saved.stats;}else{saveState();}
+    if(saved&&JSON.stringify(saved.players)===JSON.stringify(players)){stats=saved.stats;oppGoals=saved.oppGoals||0;}else{saveState();}
 
     let currentPlayer=null;
     const playerGrid=document.getElementById("playerGrid");
@@ -213,22 +201,17 @@
         setTimeout(()=>btn.classList.remove("flash"),200);
 
         const action=btn.dataset.action;
-        if(action==="save"){ saveState(); return; }
         if(currentPlayer===null){alert("Please select a player first");return;}
         stats[currentPlayer][action]++;
-        updateTotals();
+        updateScore();
         saveState();
         if("vibrate"in navigator)navigator.vibrate(10);
       });
     });
 
-    function updateTotals(){
-      const totals={tackle:0,pass:0,dribble:0,assist:0,goal:0};
-      Object.values(stats).forEach(s=>ACTIONS.forEach(a=>totals[a]+=s[a]));
-      document.getElementById("total-tackle").textContent=totals.tackle;
-      document.getElementById("total-pass").textContent=totals.pass;
-      document.getElementById("total-dribble").textContent=totals.dribble;
-      document.getElementById("total-goal").textContent=totals.goal;
+    function updateScore(){
+      const ourGoals=Object.values(stats).reduce((sum,s)=>sum+s.goal,0);
+      document.getElementById("scoreDisplay").textContent=`${ourGoals} - ${oppGoals}`;
     }
 
     function renderPlayerTotals(){
@@ -238,7 +221,7 @@
         const s=stats[i];
         const row=document.createElement("tr");
         row.innerHTML=`<td><input value="${p}" data-idx="${i}" class="player-input"></td>
-                       <td>${s.tackle}</td><td>${s.pass}</td><td>${s.dribble}</td><td>${s.assist}</td><td>${s.goal}</td>`;
+                       <td>${s.save}</td><td>${s.tackle}</td><td>${s.pass}</td><td>${s.dribble}</td><td>${s.assist}</td><td>${s.goal}</td>`;
         tbody.appendChild(row);
       });
       document.querySelectorAll(".player-input").forEach(inp=>{
@@ -262,17 +245,24 @@
     });
 
     document.getElementById("resetBtn").addEventListener("click",()=>{
-      if(confirm("Reset all stats to zero?")){
+      if(confirm("Reset all stats and score to zero?")){
         stats=freshStats();
+        oppGoals=0;
         currentPlayer=null;
         document.querySelectorAll("#playerGrid button").forEach(b=>b.classList.remove("active"));
-        updateTotals();
+        updateScore();
         renderPlayerTotals();
         saveState();
       }
     });
 
-    updateTotals();
+    document.getElementById("oppGoalBtn").addEventListener("click",()=>{
+      oppGoals++;
+      updateScore();
+      saveState();
+    });
+
+    updateScore();
   </script>
 </body>
 </html>
